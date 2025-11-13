@@ -113,7 +113,7 @@ def create_job_metadata(
     job_id: str,
     timestamp: str,
     args: argparse.Namespace,
-    profiler_config: dict,
+    benchmark_config: dict,
 ):
     """
     Create job metadata dictionary from job submission args.
@@ -575,7 +575,7 @@ def main(input_args: list[str] | None = None):
             job_id=job_id,
             timestamp=timestamp,
             args=args,
-            profiler_config=profiler_config,
+            benchmark_config=benchmark_config,
         )
         metadata_path = os.path.join(log_dir_path, f"{job_id}.json")
         with open(metadata_path, "w") as f:
@@ -620,7 +620,7 @@ def main(input_args: list[str] | None = None):
                     job_id=job_id,
                     timestamp=timestamp,
                     args=args,
-                    profiler_config=profiler_config,
+                    benchmark_config=benchmark_config,
                 )
                 retry_metadata_path = os.path.join(retry_log_dir_path, f"{job_id}.json")
                 with open(retry_metadata_path, "w") as f:
