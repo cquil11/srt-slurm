@@ -3,10 +3,11 @@
 
 [cluster]
 # SLURM cluster settings - these are defaults that can be overridden via CLI
-account = "restricted"               # SLURM account
-partition = "batch-aqua"             # SLURM partition
-network_interface = "enP6p9s0np0"    # Network interface 
-time_limit = "4:00:00"               # Default job time limit
+account = "restricted"                    # SLURM account
+partition = "batch-aqua"                  # SLURM partition
+network_interface = "enP6p9s0np0"         # Network interface 
+time_limit = "4:00:00"                    # Default job time limit
+container_image = ""                      # Default container image (optional)
 
 [cloud]
 # S3-compatible cloud storage for syncing benchmark results

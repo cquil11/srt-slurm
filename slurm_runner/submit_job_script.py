@@ -205,8 +205,16 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     parser.add_argument("--job-name", default="dynamo_setup", help="SLURM job name")
     parser.add_argument("--account", default=None, help="SLURM account (or set in srtslurm.toml)")
     parser.add_argument("--model-dir", required=True, help="Model directory path")
-    parser.add_argument("--config-dir", required=True, help="Config directory path")
-    parser.add_argument("--container-image", required=True, help="Container image")
+    parser.add_argument(
+        "--config-dir",
+        default=None,
+        help="Config directory with dynamo wheels/binaries (default: ../configs from slurm_runner/)",
+    )
+    parser.add_argument(
+        "--container-image",
+        default=None,
+        help="Container image (or set in srtslurm.toml)",
+    )
     parser.add_argument(
         "--time-limit", default=None, help="Time limit (default: 04:00:00 or from srtslurm.toml)"
     )
@@ -406,6 +414,21 @@ def _validate_args(args: argparse.Namespace) -> None:
 def main(input_args: list[str] | None = None):
     setup_logging()
     args = _parse_command_line_args(input_args)
+    
+    # Apply config-dir default if not provided
+    if args.config_dir is None:
+        # Default: ../configs from slurm_runner directory
+        default_config_dir = pathlib.Path(__file__).parent.parent / "configs"
+        args.config_dir = str(default_config_dir)
+    
+    # Apply container-image from config if not provided
+    if args.container_image is None:
+        from cluster_config import get_cluster_setting
+        args.container_image = get_cluster_setting("container_image", None)
+        if args.container_image is None:
+            raise ValueError(
+                "Container image must be specified via --container-image or [cluster].container_image in srtslurm.toml"
+            )
 
     # Validate arguments
     _validate_args(args)

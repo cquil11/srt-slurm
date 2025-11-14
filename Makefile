@@ -70,6 +70,8 @@ setup:
 		network=$${network:-enP6p9s0np0}; \
 		read -p "Enter time limit [4:00:00]: " time_limit; \
 		time_limit=$${time_limit:-4:00:00}; \
+		read -p "Enter container image path (optional): " container; \
+		container=$${container:-}; \
 		echo ""; \
 		echo "# SRT SLURM Configuration" > srtslurm.toml; \
 		echo "" >> srtslurm.toml; \
@@ -78,6 +80,7 @@ setup:
 		echo "partition = \"$$partition\"" >> srtslurm.toml; \
 		echo "network_interface = \"$$network\"" >> srtslurm.toml; \
 		echo "time_limit = \"$$time_limit\"" >> srtslurm.toml; \
+		echo "container_image = \"$$container\"" >> srtslurm.toml; \
 		echo "" >> srtslurm.toml; \
 		echo "[cloud]" >> srtslurm.toml; \
 		echo "# S3-compatible cloud storage (optional)" >> srtslurm.toml; \

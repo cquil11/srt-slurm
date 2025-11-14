@@ -26,11 +26,10 @@ cp srtslurm.toml.example srtslurm.toml
 3. Run your first benchmark (much shorter now!):
 
 ```bash
-# Minimal command (cluster settings from srtslurm.toml):
+# Minimal command (cluster settings + container from srtslurm.toml):
+cd slurm_runner
 python3 submit_job_script.py \
   --model-dir /mnt/lustre01/models/deepseek-r1-0528-fp4-v2 \
-  --container-image /mnt/lustre01/users/slurm-shared/ishan/1113/lmsysorg+sglang+v0.5.5.post2.sqsh \
-  --config-dir /mnt/lustre01/users/slurm-shared/ishan/config \
   --gpu-type gb200-fp4 \
   --gpus-per-node 4 \
   --prefill-nodes 1 \
@@ -40,20 +39,23 @@ python3 submit_job_script.py \
   --script-variant max-tpt \
   --benchmark "type=sa-bench; isl=1024; osl=1024; concurrencies=1x8x32x128x512x1024x2048x4096x8192; req-rate=inf"
 
-# Or override cluster settings via CLI if needed:
+# Or override anything via CLI:
 python3 submit_job_script.py \
+  --container-image /path/to/different/container.sqsh \
   --account nvidia \
   --partition batch \
   --network-interface enP6p9s0np0 \
   ... # (rest same as above)
 ```
 
-**What's simplified:**
+**What's simplified (9+ args removed!):**
 
-- ✅ `--use-dynamo-whls` removed (auto-enabled when `--config-dir` is set)
+- ✅ `--config-dir` optional (defaults to `../configs`)
 - ✅ `--log-dir` optional (defaults to `../logs`)
-- ✅ `--account`, `--partition`, `--network-interface` optional (read from `srtslurm.toml`)
-- ✅ `--time-limit` optional (defaults to `04:00:00` or from config)
+- ✅ `--container-image` optional (read from `srtslurm.toml`)
+- ✅ `--account`, `--partition`, `--network-interface` optional (from `srtslurm.toml`)
+- ✅ `--time-limit` optional (from `srtslurm.toml` or `04:00:00`)
+- ✅ `--use-dynamo-whls` removed (always enabled)
 
 For more info on the submission script see [slurm_runner/README.md](slurm_runner/README.md)
 
