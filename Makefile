@@ -71,6 +71,8 @@ setup:
 		partition=$${partition:-batch}; \
 		read -p "Enter network interface [enP6p9s0np0]: " network; \
 		network=$${network:-enP6p9s0np0}; \
+		read -p "Enter GPUs per node [8]: " gpus_per_node; \
+		gpus_per_node=$${gpus_per_node:-8}; \
 		read -p "Enter time limit [4:00:00]: " time_limit; \
 		time_limit=$${time_limit:-4:00:00}; \
 		read -p "Enter container image path (optional): " container; \
@@ -82,6 +84,7 @@ setup:
 		echo "  account: \"$$account\"" >> srtslurm.yaml; \
 		echo "  partition: \"$$partition\"" >> srtslurm.yaml; \
 		echo "  network_interface: \"$$network\"" >> srtslurm.yaml; \
+		echo "  gpus_per_node: $$gpus_per_node" >> srtslurm.yaml; \
 		echo "  time_limit: \"$$time_limit\"" >> srtslurm.yaml; \
 		echo "  container_image: \"$$container\"" >> srtslurm.yaml; \
 		echo "" >> srtslurm.yaml; \
