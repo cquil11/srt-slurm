@@ -16,7 +16,6 @@ The script will:
 import argparse
 import logging
 import os
-import platform
 import socket
 import subprocess
 import time
@@ -32,20 +31,22 @@ DIST_INIT_PORT = 29500
 ETCD_LISTEN_ADDR = "http://0.0.0.0"
 
 
-def get_architecture_wheel_suffix() -> str:
+def get_wheel_arch_from_gpu_type(gpu_type: str) -> str:
     """
-    Detect system architecture and return the appropriate wheel suffix.
+    Map GPU type to the appropriate wheel architecture suffix.
+
+    Args:
+        gpu_type: GPU type string (e.g., "gb200-fp8", "h100-fp8")
 
     Returns:
-        "aarch64" for ARM64 (GB200), "x86_64" for x86_64 (H100)
+        "aarch64" for GB200, "x86_64" for H100
     """
-    arch = platform.machine()
-    if arch == "aarch64":
+    if gpu_type.startswith("gb200"):
         return "aarch64"
-    elif arch == "x86_64":
+    elif gpu_type.startswith("h100"):
         return "x86_64"
     else:
-        raise RuntimeError(f"Unsupported architecture: {arch}")
+        raise RuntimeError(f"Unknown GPU type: {gpu_type}. Cannot determine wheel architecture.")
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -373,7 +374,7 @@ def setup_nginx_worker(master_ip: str, nginx_config: str) -> int:
 
 
 def setup_frontend_worker(
-    worker_idx: int, master_ip: str, use_dynamo_whls: bool = False
+    worker_idx: int, master_ip: str, gpu_type: str, use_dynamo_whls: bool = False
 ) -> int:
     """Setup a frontend worker"""
     logging.info(f"Setting up frontend worker {worker_idx}")
@@ -389,7 +390,7 @@ def setup_frontend_worker(
     # All frontends run the ingress server
     frontend_cmd = "python3 -m dynamo.frontend --http-port=8000"
     if use_dynamo_whls:
-        arch = get_architecture_wheel_suffix()
+        arch = get_wheel_arch_from_gpu_type(gpu_type)
         frontend_cmd = f"python3 -m pip install /configs/ai_dynamo_runtime-0.6.1-cp310-abi3-manylinux_2_28_{arch}.whl && python3 -m pip install /configs/ai_dynamo-0.6.1-py3-none-any.whl && python3 -m dynamo.frontend --http-port=8000"
     return run_command(frontend_cmd)
 
@@ -555,7 +556,7 @@ def main(input_args: list[str] | None = None):
             raise ValueError("--nginx_config is required for nginx worker type")
         setup_nginx_worker(args.master_ip, args.nginx_config)
     elif args.worker_type == "frontend":
-        setup_frontend_worker(args.worker_idx, args.master_ip, args.use_dynamo_whls)
+        setup_frontend_worker(args.worker_idx, args.master_ip, args.gpu_type, args.use_dynamo_whls)
     elif args.worker_type == "prefill":
         setup_prefill_worker(
             args.worker_idx,
