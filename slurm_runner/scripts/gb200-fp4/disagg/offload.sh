@@ -98,6 +98,7 @@ if [ "$mode" = "prefill" ]; then
     SGLANG_USE_MESSAGE_QUEUE_BROADCASTER=0 \
     SGL_DISABLE_TP_MEMORY_INBALANCE_CHECK=1 \
     PYTHONUNBUFFERED=1 \
+    numactl --cpunodebind=0 --membind=0 \
     python3 -m dynamo.sglang \
         --disaggregation-mode prefill \
         --host 0.0.0.0 \
