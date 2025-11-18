@@ -99,6 +99,7 @@ if [ "$mode" = "prefill" ]; then
         DISAGG_MODE_FLAG=""
     fi
 
+    SGLANG_ENABLE_JIT_DEEPGEMM=false \
     DYN_SKIP_SGLANG_LOG_FORMATTING=1 \
     MC_TE_METRIC=true \
     SGLANG_ENABLE_FLASHINFER_GEMM=1 \
@@ -113,6 +114,7 @@ if [ "$mode" = "prefill" ]; then
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK=1 \
     PYTHONUNBUFFERED=1 \
     python3 -m $PYTHON_MODULE \
+        --watchdog-timeout 1000000 \
         --served-model-name deepseek-ai/DeepSeek-R1 \
         --model-path /model/ \
         --trust-remote-code \
@@ -163,6 +165,7 @@ elif [ "$mode" = "decode" ]; then
         DISAGG_MODE_FLAG=""
     fi
 
+    SGLANG_ENABLE_JIT_DEEPGEMM=false \
     DYN_SKIP_SGLANG_LOG_FORMATTING=1 \
     MC_TE_METRIC=true \
     SGLANG_ENABLE_FLASHINFER_GEMM=1 \
@@ -179,6 +182,7 @@ elif [ "$mode" = "decode" ]; then
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK=1 \
     PYTHONUNBUFFERED=1 \
     python3 -m $PYTHON_MODULE \
+        --watchdog-timeout 1000000 \
         --served-model-name deepseek-ai/DeepSeek-R1 \
         --model-path /model/ \
         --trust-remote-code \
