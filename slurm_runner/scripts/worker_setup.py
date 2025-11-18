@@ -382,6 +382,8 @@ def setup_frontend_worker(
     # First frontend (worker_idx 0) also sets up NATS/ETCD
     if worker_idx == 0:
         setup_head_prefill_node(master_ip, use_dynamo_whls)
+        if not wait_for_etcd(f"http://{master_ip}:{ETCD_CLIENT_PORT}"):
+            raise RuntimeError("Failed to connect to etcd")
     else:
         logging.info(f"Setting up additional frontend worker {worker_idx}")
         if not wait_for_etcd(f"http://{master_ip}:{ETCD_CLIENT_PORT}"):
