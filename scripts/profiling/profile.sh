@@ -44,38 +44,68 @@ wait_until_ready() {
 }
 wait_until_ready "http://${head_node}:${head_port}"
 
-# Determine profiling parameters based on mode
-if [[ "${PROFILING_MODE}" == "prefill" ]]; then
-    # Prefill profiling: smaller batch, long input, short output
-    BATCH_SIZE=24
-    INPUT_LEN=1024
-    OUTPUT_LEN=2
-    PROFILE_STEPS_ARG=""
-    echo "Running prefill profiling with batch=${BATCH_SIZE}, input_len=${INPUT_LEN}, output_len=${OUTPUT_LEN}"
-else
-    # Decode profiling: large batch, short input, longer output with profile steps
-    BATCH_SIZE=1024
-    INPUT_LEN=8
-    OUTPUT_LEN=16
-    PROFILE_STEPS_ARG="--profile-steps 16"
-    echo "Running decode profiling with batch=${BATCH_SIZE}, input_len=${INPUT_LEN}, output_len=${OUTPUT_LEN}, profile_steps=16"
+# Determine profiling parameters strictly from environment 
+PROFILE_STEPS_ARG=""
+CLI_ARGS=""
+[[ -n "${PROFILE_CONCURRENCY}" ]] && CLI_ARGS+=" --batch-size ${PROFILE_CONCURRENCY}"
+# Require ISL/OSL to be provided; do not pass them as CLI args here
+if [[ -z "${PROFILE_ISL}" || -z "${PROFILE_OSL}" ]]; then
+    echo "Error: isl and osl must be set for profiling."
+    exit 1
 fi
 
-# Create profiling output directory
-mkdir -p ${SGLANG_TORCH_PROFILER_DIR} 2>/dev/null || true
+# Configure profiling steps range; set defaults independently if missing
+if [[ -z "${PROFILE_START_STEP}" ]]; then
+    echo "Warning: PROFILE_START_STEP not set; defaulting to 0"
+    PROFILE_START_STEP=0
+fi
+if [[ -z "${PROFILE_STOP_STEP}" ]]; then
+    echo "Warning: PROFILE_STOP_STEP not set; defaulting to 50"
+    PROFILE_STOP_STEP=50
+fi
 
-echo "Running torch profiler..."
+
+echo "Running profiler..."
 echo "$(date '+%Y-%m-%d %H:%M:%S')"
 
+# Create profiling output directory only when torch profiler dir is provided
+ACTIVITIES=""
+if [[ -n "${SGLANG_TORCH_PROFILER_DIR}" ]]; then
+    ACTIVITIES='["GPU"]'
+    mkdir -p "${SGLANG_TORCH_PROFILER_DIR}" 2>/dev/null || true
+    export SGLANG_TORCH_PROFILER_DIR=${SGLANG_TORCH_PROFILER_DIR}
+else
+    ACTIVITIES='["CUDA_PROFILER"]'
+    mkdir -p "/logs/profiles" 2>/dev/null || true
+fi
+
 set -x
-python3 -m sglang.bench_one_batch_server \
-    --model ${model_name} \
-    --base-url http://${head_node}:${head_port} \
-    --batch-size ${BATCH_SIZE} \
-    --input-len ${INPUT_LEN} \
-    --output-len ${OUTPUT_LEN} \
-    ${PROFILE_STEPS_ARG} \
-    --profile
+
+curl -X POST http://${head_node}:${head_port}/start_profile -H "Content-Type: application/json" -d "{\"start_step\": \"$PROFILE_START_STEP\", \"num_steps\": $((PROFILE_STOP_STEP-PROFILE_START_STEP)), \"activities\": $ACTIVITIES}"
+
+python3 -m sglang.bench_serving \
+--backend sglang \
+--model ${model_name} \
+--host ${head_node} --port ${head_port} \
+--dataset-name random \
+--max-concurrency $PROFILE_CONCURRENCY \
+--num-prompts 128 \
+--random-input-len $PROFILE_ISL \
+--random-output-len $PROFILE_OSL \
+--random-range-ratio 1 \
+--warmup-request 10
+
+pip install lm-eval tenacity
+python -m lm_eval \
+--model local-completions \
+--tasks gsm8k \
+--model_args \
+base_url=http://${head_node}:${head_port}/v1/completions,\
+model=${model_name},\
+tokenized_requests=False,tokenizer_backend=None,\
+num_concurrent=${PROFILE_CONCURRENCY},timeout=6000,max_retries=1 \
+--limit 10
+
 exit_code=$?
 set +x
 

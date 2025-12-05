@@ -101,9 +101,12 @@ class SGLangBackend(Backend):
         for key, val in env_vars.items():
             lines.append(f"{key}={val} \\")
 
-        # Python command - use sglang.launch_server for profiling, dynamo.sglang otherwise
-        is_profiling = self.backend_config.get("enable_profiling", False)
-        if is_profiling:
+        # Python command - use sglang.launch_server when profiler != none, dynamo.sglang otherwise
+        profiling_type = (self.config.get("profiling") or {}).get("type", "none")
+        nsys_prefix = "nsys profile -t cuda,nvtx --cuda-graph-trace=node -c cudaProfilerApi --capture-range-end stop --force-overwrite true"
+        if profiling_type == "nsys":
+            lines.append(f"{nsys_prefix} python3 -m sglang.launch_server \\")
+        elif profiling_type == "torch":
             lines.append("python3 -m sglang.launch_server \\")
         else:
             lines.append("python3 -m dynamo.sglang \\")
@@ -133,14 +136,14 @@ class SGLangBackend(Backend):
             List of flag strings with backslash continuations
         """
         lines = []
-        is_profiling = self.backend_config.get("enable_profiling", False)
+        profiling_type = (self.config.get("profiling") or {}).get("type", "none")
 
         for key, value in sorted(config.items()):
             # Convert underscores to hyphens
             flag_name = key.replace("_", "-")
 
             # Skip disaggregation-mode flag when profiling (sglang.launch_server doesn't accept it)
-            if is_profiling and flag_name == "disaggregation-mode":
+            if profiling_type in ("torch", "nsys") and flag_name == "disaggregation-mode":
                 continue
 
             if isinstance(value, bool):
@@ -188,7 +191,8 @@ class SGLangBackend(Backend):
         enable_config_dump = self.config.get("enable_config_dump", True)
 
         # Auto-disable when profiling is enabled (unless explicitly set to True)
-        if self.backend_config.get("enable_profiling", False):
+        profiling_type = (self.config.get("profiling") or {}).get("type", "none")
+        if profiling_type != "none":
             # When profiling, disable config dump by default
             # User can explicitly set enable_config_dump: true to override
             return False
@@ -277,6 +281,30 @@ class SGLangBackend(Backend):
         config_dir_path = srtctl_root / "configs"
         log_dir_path = srtctl_root / "logs"
 
+        # Build profiling env injections
+        profiling_cfg = self.config.get("profiling") or {}
+        prefill_cfg = profiling_cfg.get("prefill") or {}
+        decode_cfg = profiling_cfg.get("decode") or {}
+
+        def build_env_str(cfg: dict) -> str:
+            parts: list[str] = []
+            if "isl" in cfg and cfg["isl"] is not None:
+                parts.append(f"PROFILE_ISL={cfg['isl']}")
+            if "osl" in cfg and cfg["osl"] is not None:
+                parts.append(f"PROFILE_OSL={cfg['osl']}")
+            if "concurrency" in cfg and cfg["concurrency"] is not None:
+                parts.append(f"PROFILE_CONCURRENCY={cfg['concurrency']}")
+            if "start_step" in cfg and cfg["start_step"] is not None:
+                parts.append(f"PROFILE_START_STEP={cfg['start_step']}")
+            if "stop_step" in cfg and cfg["stop_step"] is not None:
+                parts.append(f"PROFILE_STOP_STEP={cfg['stop_step']}")
+            return " ".join(parts)
+
+        prefill_profile_env = build_env_str(prefill_cfg)
+        decode_profile_env = build_env_str(decode_cfg)
+
+        profiler_mode = profiling_cfg.get("type", "none")
+
         # Template variables
         template_vars = {
             "job_name": job_name,
@@ -307,7 +335,9 @@ class SGLangBackend(Backend):
             # Auto-disabled when profiling unless explicitly enabled
             "enable_config_dump": self._get_enable_config_dump(),
             "log_dir_prefix": str(log_dir_path),  # Absolute path to logs directory
-            "sglang_torch_profiler": self.backend_config.get("enable_profiling", False),
+            "profiler": profiler_mode,
+            "prefill_profile_env": prefill_profile_env,
+            "decode_profile_env": decode_profile_env,
             "setup_script": self.setup_script,
             "use_gpus_per_node_directive": get_srtslurm_setting("use_gpus_per_node_directive", True),
             "extra_container_mounts": ",".join(self.config.get("extra_mount") or []),
