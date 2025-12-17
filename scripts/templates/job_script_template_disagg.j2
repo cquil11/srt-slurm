@@ -378,10 +378,11 @@ echo "scancel $SLURM_JOB_ID"
 
 BENCHMARK_TYPE={{ benchmark_type }}
 BENCHMARK_ARGS="{{ benchmark_arg }}"
+USE_SGLANG_ROUTER={{ "true" if use_sglang_router else "false" }}
 
 {% if do_benchmark %}
 {% raw %}
-srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w ${nodes[0]} --output=${LOG_DIR}/benchmark.out --overlap bash /scripts/benchmarks/${BENCHMARK_TYPE}/bench.sh $PREFILL_WORKERS $DECODE_WORKERS $PREFILL_GPUS $DECODE_GPUS ${BENCHMARK_ARGS} &
+srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w ${nodes[0]} --output=${LOG_DIR}/benchmark.out --overlap bash /scripts/benchmarks/${BENCHMARK_TYPE}/bench.sh $PREFILL_WORKERS $DECODE_WORKERS $PREFILL_GPUS $DECODE_GPUS ${BENCHMARK_ARGS} ${USE_SGLANG_ROUTER} &
 {% endraw %}
 {% endif %}
 
