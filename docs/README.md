@@ -22,7 +22,8 @@ Running large language models across multiple GPUs and nodes requires orchestrat
 
 - Prefill workers handle the initial prompt processing
 - Decode workers handle token generation
-- Frontend distribution via nginx load balancer (default) or sglang_router
+- Frontend distribution via nginx load balancer
+- Two routing options: [Dynamo frontends](installation.md) (default) or [SGLang Router](sglang-router.md)
 
 **Aggregated Mode** runs combined prefill+decode on each worker, simpler but potentially less efficient for high-throughput scenarios.
 
@@ -50,6 +51,7 @@ Once allocated, workers launch inside containers, discover each other through ET
 ## Next Steps
 
 - [Installation](installation.md) - Set up `srtctl` and submit your first job
+- [SGLang Router](sglang-router.md) - Alternative to Dynamo for PD disaggregation
 - [Monitoring](monitoring.md) - Understanding job logs and debugging
 - [Parameter Sweeps](sweeps.md) - Run grid searches across configurations
 - [Profiling](profiling.md) - Performance analysis with torch/nsys
