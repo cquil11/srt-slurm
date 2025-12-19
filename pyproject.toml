@@ -26,6 +26,8 @@ dev = [
 
 [project.scripts]
 srtctl = "srtctl.cli.submit:main"
+srtctl-sweep = "srtctl.cli.do_sweep:main"
+srtctl-setup-head = "srtctl.cli.setup_head:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/srtctl"]

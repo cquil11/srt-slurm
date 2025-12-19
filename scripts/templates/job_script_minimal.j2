@@ -47,7 +47,7 @@ cp "{{ sglang_config_path }}" "./outputs/${SLURM_JOB_ID}/sglang_config.yaml"
 {% endif %}
 
 # Run the Python orchestrator
-# Use the same Python interpreter that submitted the job (has srtctl installed)
+# Use the same Python that ran srtctl (captured at submission time)
 # Use unbuffered output (-u) for real-time logging
 {{ python_executable }} -u -m srtctl.cli.do_sweep "{{ config_path }}" 2>&1 | tee "./outputs/${SLURM_JOB_ID}/logs/orchestrator_${SLURM_JOB_ID}.log"
 

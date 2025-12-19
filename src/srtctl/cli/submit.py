@@ -103,7 +103,7 @@ def generate_minimal_sbatch_script(
         timestamp=timestamp,
         use_gpus_per_node_directive=get_srtslurm_setting("use_gpus_per_node_directive", True),
         use_segment_sbatch_directive=get_srtslurm_setting("use_segment_sbatch_directive", True),
-        python_executable=sys.executable,  # Use the Python that has srtctl installed
+        python_executable=sys.executable,  # Use the same Python that ran srtctl
     )
 
     return rendered
