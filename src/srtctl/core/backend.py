@@ -95,7 +95,7 @@ class SGLangBackend:
 
         if config_path:
             with open(config_path) as f:
-                sglang_config = yaml.load(f, Loader=yaml.FullLoader)
+                sglang_config = yaml.safe_load(f)
             lines.extend(self._config_to_flags(sglang_config.get(mode, {})))
 
         nnodes = (

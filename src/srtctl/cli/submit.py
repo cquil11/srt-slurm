@@ -258,7 +258,7 @@ def submit_sweep(config_path: Path, dry_run: bool = False, setup_script: str = N
     """
     # Load YAML directly without validation (sweep configs have extra 'sweep' field)
     with open(config_path) as f:
-        sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+        sweep_config = yaml.safe_load(f)
 
     # Generate all configs
     configs = generate_sweep_configs(sweep_config)
