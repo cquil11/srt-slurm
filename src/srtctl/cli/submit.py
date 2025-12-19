@@ -69,82 +69,35 @@ def render_commands_file(backend, sglang_config_path: Path, output_path: Path) -
     return output_path
 
 
-class DryRunContext:
-    """Context for dry-run mode - creates output directory and saves artifacts"""
+def run_dry_run(config: dict, backend, sglang_config_path: Path = None) -> Path:
+    """Execute dry-run: save artifacts and print summary."""
+    job_name = config.get("name", "dry-run")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path.cwd() / "dry-runs" / f"{job_name}_{timestamp}"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    def __init__(self, config: dict, job_name: str = None):
-        self.config = config
-        self.job_name = job_name or config.get("name", "dry-run")
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.output_dir = None
-        self.sglang_config_path = None
+    # Save config
+    with open(output_dir / "config.yaml", "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    def setup(self) -> Path:
-        """Create dry-run output directory"""
-        # Create in dry-runs/
-        base_dir = Path.cwd() / "dry-runs"
-        self.output_dir = base_dir / f"{self.job_name}_{self.timestamp}"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    # Save sglang config if present
+    has_sglang = False
+    if sglang_config_path and sglang_config_path.exists():
+        shutil.copy(sglang_config_path, output_dir / "sglang_config.yaml")
+        render_commands_file(backend, sglang_config_path, output_dir / "commands.sh")
+        has_sglang = True
 
-        logging.info(f"📁 Dry-run output directory: {self.output_dir}")
-        return self.output_dir
+    # Save metadata
+    with open(output_dir / "metadata.json", "w") as f:
+        json.dump({"job_name": job_name, "timestamp": timestamp, "mode": "dry-run"}, f, indent=2)
 
-    def save_config(self, config: dict) -> Path:
-        """Save resolved config (with all defaults applied)"""
-        config_path = self.output_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-        logging.info(f"  ✓ Saved resolved config: {config_path.name}")
-        return config_path
+    # Print summary
+    print(f"\n{'=' * 60}\n🔍 DRY-RUN: {job_name}\n{'=' * 60}")
+    print(f"Output: {output_dir}")
+    print(f"Files: config.yaml{', sglang_config.yaml, commands.sh' if has_sglang else ''}, metadata.json")
+    print(f"{'=' * 60}\n")
 
-    def save_sglang_config(self, sglang_config_path: Path) -> Path:
-        """Copy SGLang config to dry-run dir"""
-        if sglang_config_path and sglang_config_path.exists():
-            dest = self.output_dir / "sglang_config.yaml"
-            shutil.copy(sglang_config_path, dest)
-            logging.info(f"  ✓ Saved SGLang config: {dest.name}")
-            self.sglang_config_path = dest
-            return dest
-        return None
-
-    def save_rendered_commands(self, backend, sglang_config_path: Path) -> Path:
-        """Save just the rendered commands (no sbatch headers)"""
-        commands_path = self.output_dir / "commands.sh"
-        render_commands_file(backend, sglang_config_path, commands_path)
-        logging.info(f"  ✓ Saved rendered commands: {commands_path.name}")
-        return commands_path
-
-    def save_metadata(self, config: dict) -> Path:
-        """Save submission metadata"""
-        metadata = {
-            "job_name": self.job_name,
-            "timestamp": self.timestamp,
-            "config": config,
-            "mode": "dry-run",
-        }
-
-        metadata_path = self.output_dir / "metadata.json"
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-        logging.info(f"  ✓ Saved metadata: {metadata_path.name}")
-        return metadata_path
-
-    def print_summary(self):
-        """Print summary of what would be submitted"""
-        print("\n" + "=" * 60)
-        print("🔍 DRY-RUN SUMMARY")
-        print("=" * 60)
-        print(f"\nJob Name: {self.job_name}")
-        print(f"Output Directory: {self.output_dir}")
-        print("\nGenerated Files:")
-        print("  - config.yaml          (resolved config with defaults)")
-        if self.sglang_config_path:
-            print("  - sglang_config.yaml   (SGLang flags)")
-        print("  - commands.sh          (full bash commands)")
-        print("  - metadata.json        (submission info)")
-        print("\nTo see what commands would run:")
-        print(f"  cat {self.output_dir}/commands.sh")
-        print("\n" + "=" * 60 + "\n")
+    return output_dir
 
 
 def submit_single(
@@ -172,31 +125,10 @@ def submit_single(
     # Dry-run mode
     if dry_run:
         logging.info(f"🔍 DRY-RUN MODE: {config['name']}")
-        ctx = DryRunContext(config)
-        ctx.setup()
-
-        # Save user config
-        ctx.save_config(config)
-
-        # Create backend instance
         backend_type = config.get("backend", {}).get("type")
-        if backend_type == "sglang":
-            backend = SGLangBackend(config, setup_script=setup_script)
-            sglang_config_path = backend.generate_config_file()
-            ctx.save_sglang_config(sglang_config_path)
-
-            # Save rendered commands
-            if sglang_config_path:
-                ctx.save_rendered_commands(backend, sglang_config_path)
-        else:
-            sglang_config_path = None
-
-        # Save metadata
-        ctx.save_metadata(config)
-
-        # Print summary
-        ctx.print_summary()
-
+        backend = SGLangBackend(config, setup_script=setup_script) if backend_type == "sglang" else None
+        sglang_config_path = backend.generate_config_file() if backend else None
+        run_dry_run(config, backend, sglang_config_path)
         return
 
     # Real submission mode

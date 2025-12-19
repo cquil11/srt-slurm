@@ -18,21 +18,25 @@ import srtctl
 from srtctl.core.config import get_srtslurm_setting
 from srtctl.core.sweep import expand_template
 
-from .base import Backend
 
-
-class SGLangBackend(Backend):
+class SGLangBackend:
     """SGLang backend for distributed serving."""
 
     def __init__(self, config: dict, setup_script: str = None):
-        """Initialize SGLang backend.
-
-        Args:
-            config: Full user configuration dict
-            setup_script: Optional custom setup script name in configs directory
-        """
-        super().__init__(config)
+        self.config = config
+        self.backend_config = config.get("backend", {})
+        self.resources = config.get("resources", {})
+        self.model = config.get("model", {})
+        self.slurm = config.get("slurm", {})
         self.setup_script = setup_script
+
+    def is_disaggregated(self) -> bool:
+        """Check if running in disaggregated mode."""
+        return self.resources.get("prefill_nodes") is not None
+
+    def get_environment_vars(self, mode: str) -> dict[str, str]:
+        """Get environment variables for this mode."""
+        return self.backend_config.get(f"{mode}_environment", {})
 
     def generate_config_file(self, params: dict = None) -> Path | None:
         """Generate SGLang YAML config file.
