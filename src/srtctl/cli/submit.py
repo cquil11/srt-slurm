@@ -26,7 +26,7 @@ from pathlib import Path
 # Import from srtctl modules
 from srtctl.core.config import load_config
 from srtctl.core.sweep import generate_sweep_configs
-from srtctl.backends.sglang import SGLangBackend
+from srtctl.core.backend import SGLangBackend
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -38,34 +38,18 @@ def setup_logging(level: int = logging.INFO) -> None:
 
 
 def render_commands_file(backend, sglang_config_path: Path, output_path: Path) -> Path:
-    """Generate commands.sh file with rendered SGLang commands.
+    """Generate commands.sh with rendered SGLang commands."""
+    content = f"""#!/bin/bash
+# Generated SGLang commands - Config: {sglang_config_path}
 
-    Args:
-        backend: SGLang backend instance
-        sglang_config_path: Path to sglang_config.yaml
-        output_path: Where to save commands.sh
+# PREFILL
+{backend.render_command(mode="prefill", config_path=sglang_config_path)}
 
-    Returns:
-        Path to generated commands.sh
-    """
-    content = "#!/bin/bash\n"
-    content += "# Generated SGLang commands\n"
-    content += f"# Config: {sglang_config_path}\n\n"
-    content += "# ============================================================\n"
-    content += "# PREFILL WORKER COMMAND\n"
-    content += "# ============================================================\n\n"
-    content += backend.render_command(mode="prefill", config_path=sglang_config_path)
-    content += "\n\n"
-    content += "# ============================================================\n"
-    content += "# DECODE WORKER COMMAND\n"
-    content += "# ============================================================\n\n"
-    content += backend.render_command(mode="decode", config_path=sglang_config_path)
-    content += "\n"
-
-    with open(output_path, "w") as f:
-        f.write(content)
+# DECODE
+{backend.render_command(mode="decode", config_path=sglang_config_path)}
+"""
+    output_path.write_text(content)
     output_path.chmod(0o755)
-
     return output_path
 
 
@@ -191,73 +175,49 @@ def submit_single(
                 shutil.copy(sglang_config_path, log_dir / "sglang_config.yaml")
 
             # Generate jobid.json metadata
-
-            resources = config.get("resources", {})
-            backend_cfg = config.get("backend", {})
-            model = config.get("model", {})
-            slurm_cfg = config.get("slurm", {})
+            resources, model, slurm_cfg = config.get("resources", {}), config.get("model", {}), config.get("slurm", {})
             benchmark_cfg = config.get("benchmark", {})
+
+            run_meta = {
+                "slurm_job_id": job_id,
+                "run_date": timestamp,
+                "job_name": config.get("name", "unnamed"),
+                "account": slurm_cfg.get("account"),
+                "partition": slurm_cfg.get("partition"),
+                "time_limit": slurm_cfg.get("time_limit"),
+                "container": model.get("container"),
+                "model_dir": model.get("path"),
+                "gpus_per_node": resources.get("gpus_per_node"),
+                "gpu_type": config.get("backend", {}).get("gpu_type"),
+                "mode": "aggregated" if is_aggregated else "disaggregated",
+            }
+            if is_aggregated:
+                run_meta.update(agg_nodes=resources.get("agg_nodes"), agg_workers=resources.get("agg_workers"))
+            else:
+                run_meta.update(
+                    prefill_nodes=resources.get("prefill_nodes"),
+                    decode_nodes=resources.get("decode_nodes"),
+                    prefill_workers=resources.get("prefill_workers"),
+                    decode_workers=resources.get("decode_workers"),
+                )
 
             metadata = {
                 "version": "1.0",
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "run_metadata": {
-                    "slurm_job_id": job_id,
-                    "run_date": timestamp,
-                    "job_name": config.get("name", "unnamed"),
-                    "account": slurm_cfg.get("account"),
-                    "partition": slurm_cfg.get("partition"),
-                    "time_limit": slurm_cfg.get("time_limit"),
-                    "container": model.get("container"),
-                    "model_dir": model.get("path"),
-                    "gpus_per_node": resources.get("gpus_per_node"),
-                    "gpu_type": backend_cfg.get("gpu_type"),
-                    "mode": "aggregated" if is_aggregated else "disaggregated",
-                },
+                "run_metadata": run_meta,
             }
 
-            # Add mode-specific metadata
-            if is_aggregated:
-                metadata["run_metadata"].update(
-                    {
-                        "agg_nodes": resources.get("agg_nodes"),
-                        "agg_workers": resources.get("agg_workers"),
-                    }
-                )
-            else:
-                metadata["run_metadata"].update(
-                    {
-                        "prefill_nodes": resources.get("prefill_nodes"),
-                        "decode_nodes": resources.get("decode_nodes"),
-                        "prefill_workers": resources.get("prefill_workers"),
-                        "decode_workers": resources.get("decode_workers"),
-                    }
-                )
-
-            # Add benchmark metadata if present
-            if benchmark_cfg:
-                bench_type = benchmark_cfg.get("type", "manual")
-                profiler_metadata = {"type": bench_type}
-
+            if bench_type := benchmark_cfg.get("type", "manual"):
+                bench_meta = {"type": bench_type}
                 if bench_type == "sa-bench":
-                    concurrencies = benchmark_cfg.get("concurrencies", [])
-                    # Handle both list and string formats
-                    if isinstance(concurrencies, list):
-                        concurrency_str = "x".join(str(c) for c in concurrencies) if concurrencies else ""
-                    else:
-                        concurrency_str = str(concurrencies) if concurrencies else ""
-                    profiler_metadata.update(
-                        {
-                            "isl": str(benchmark_cfg.get("isl", "")),
-                            "osl": str(benchmark_cfg.get("osl", "")),
-                            "concurrencies": concurrency_str,
-                            "req-rate": str(benchmark_cfg.get("req_rate", "inf")),
-                        }
+                    conc = benchmark_cfg.get("concurrencies", [])
+                    bench_meta.update(
+                        isl=str(benchmark_cfg.get("isl", "")),
+                        osl=str(benchmark_cfg.get("osl", "")),
+                        concurrencies="x".join(str(c) for c in conc) if isinstance(conc, list) else str(conc or ""),
+                        **{"req-rate": str(benchmark_cfg.get("req_rate", "inf"))},
                     )
-
-                metadata["profiler_metadata"] = profiler_metadata
-
-            # Add tags if provided
+                metadata["profiler_metadata"] = bench_meta
             if tags:
                 metadata["tags"] = tags
 
@@ -340,20 +300,11 @@ def submit_sweep(config_path: Path, dry_run: bool = False, setup_script: str = N
                     # Save rendered commands (like single dry-run does)
                     render_commands_file(backend, sglang_config_path, job_dir / "commands.sh")
 
-            logging.info(f"  ✓ Saved to: {job_dir.name}")
+            logging.info(f"  ✓ {job_dir.name}")
 
-        print("\n" + "=" * 60)
-        print("🔍 SWEEP DRY-RUN SUMMARY")
-        print("=" * 60)
-        print(f"\nSweep: {sweep_config['name']}")
-        print(f"Jobs: {len(configs)}")
-        print(f"Output: {sweep_dir}")
-        print("\nEach job directory contains:")
-        print("  - config.yaml (expanded config)")
-        print("  - sglang_config.yaml (SGLang flags)")
-        print("  - commands.sh (full bash commands)")
-        print("\n" + "=" * 60 + "\n")
-
+        print(
+            f"\n{'=' * 60}\n🔍 SWEEP: {sweep_config['name']} ({len(configs)} jobs)\nOutput: {sweep_dir}\n{'=' * 60}\n"
+        )
         return
 
     # Real submission
@@ -367,107 +318,41 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(
-        description="Unified job submission for srtctl",
+        description="srtctl - SLURM job submission",
+        epilog="Examples:\n  srtctl apply -f config.yaml\n  srtctl dry-run -f sweep.yaml --sweep",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Submit from YAML config
-  srtctl apply -f config.yaml
-
-  # Submit sweep (auto-detected from config)
-  srtctl apply -f sweep.yaml
-
-  # Submit with custom setup script
-  srtctl apply -f config.yaml --setup-script custom-setup.sh
-
-  # Submit with tags
-  srtctl apply -f config.yaml --tags experiment,baseline,v2
-
-  # Dry-run (validate without submitting)
-  srtctl dry-run -f config.yaml
-
-  # Validate alias
-  srtctl validate -f config.yaml
-
-  # Force sweep mode (if auto-detection fails)
-  srtctl apply -f config.yaml --sweep
-        """,
     )
 
-    # Subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Command to run", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Apply command
+    # Common args for both commands
+    def add_common_args(p):
+        p.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
+        p.add_argument("--sweep", action="store_true", help="Force sweep mode")
+
     apply_parser = subparsers.add_parser("apply", help="Submit job(s) to SLURM")
-    apply_parser.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
-    apply_parser.add_argument(
-        "--sweep",
-        action="store_true",
-        help="Force sweep mode (usually auto-detected)",
-    )
-    apply_parser.add_argument(
-        "--setup-script",
-        type=str,
-        default=None,
-        help="Custom setup script name in configs directory (e.g., 'custom-setup.sh')",
-    )
-    apply_parser.add_argument(
-        "--tags",
-        type=str,
-        default=None,
-        help="Comma-separated tags to apply to the run (e.g., 'experiment,baseline,v2')",
-    )
+    add_common_args(apply_parser)
+    apply_parser.add_argument("--setup-script", type=str, help="Custom setup script in configs/")
+    apply_parser.add_argument("--tags", type=str, help="Comma-separated tags")
 
-    # Dry-run command
-    dry_run_parser = subparsers.add_parser("dry-run", help="Validate and generate artifacts without submitting")
-    dry_run_parser.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
-    dry_run_parser.add_argument(
-        "--sweep",
-        action="store_true",
-        help="Force sweep mode (usually auto-detected)",
-    )
-
-    # Validate command (alias for dry-run)
-    validate_parser = subparsers.add_parser("validate", help="Alias for dry-run")
-    validate_parser.add_argument("-f", "--file", type=Path, required=True, dest="config", help="YAML config file")
-    validate_parser.add_argument(
-        "--sweep",
-        action="store_true",
-        help="Force sweep mode (usually auto-detected)",
-    )
+    dry_run_parser = subparsers.add_parser("dry-run", help="Validate without submitting")
+    add_common_args(dry_run_parser)
 
     args = parser.parse_args()
-
-    # Check config exists
     if not args.config.exists():
-        logging.error(f"Config file not found: {args.config}")
+        logging.error(f"Config not found: {args.config}")
         sys.exit(1)
 
-    # Determine if dry-run mode
-    is_dry_run = args.command in ("dry-run", "validate")
-
-    # Auto-detect sweep unless explicitly set
-    is_sweep = args.sweep
-    if not is_sweep:
-        try:
-            is_sweep = is_sweep_config(args.config)
-            if is_sweep:
-                logging.info("Auto-detected sweep config")
-        except Exception as e:
-            logging.warning(f"Could not auto-detect sweep mode: {e}")
-
-    # Parse tags if provided
-    tags = None
-    if hasattr(args, "tags") and args.tags:
-        tags = [t.strip() for t in args.tags.split(",") if t.strip()]
-        if tags:
-            logging.info(f"🏷️  Tags: {', '.join(tags)}")
+    is_dry_run = args.command == "dry-run"
+    is_sweep = args.sweep or is_sweep_config(args.config)
+    tags = [t.strip() for t in (getattr(args, "tags", "") or "").split(",") if t.strip()] or None
 
     try:
+        setup_script = getattr(args, "setup_script", None)
         if is_sweep:
-            submit_sweep(args.config, dry_run=is_dry_run, setup_script=getattr(args, "setup_script", None), tags=tags)
+            submit_sweep(args.config, dry_run=is_dry_run, setup_script=setup_script, tags=tags)
         else:
-            submit_single(args.config, dry_run=is_dry_run, setup_script=getattr(args, "setup_script", None), tags=tags)
+            submit_single(config_path=args.config, dry_run=is_dry_run, setup_script=setup_script, tags=tags)
     except Exception as e:
         logging.exception(f"Error: {e}")
         sys.exit(1)

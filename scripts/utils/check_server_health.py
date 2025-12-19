@@ -79,7 +79,9 @@ def check_dynamo_health(expected_n_prefill: int, expected_n_decode: int, respons
         return f"Model is not ready, waiting for {expected_n_prefill} prefills and {expected_n_decode} decodes to spin up. Response: {response}"
 
 
-def check_server_health(expected_n_prefill: str, expected_n_decode: str, response: str, sglang_router: bool = False) -> str:
+def check_server_health(
+    expected_n_prefill: str, expected_n_decode: str, response: str, sglang_router: bool = False
+) -> str:
     """
     Checks the health of the server's response and ensures worker counts match expectation.
     """
