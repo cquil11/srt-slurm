@@ -11,7 +11,7 @@
 {% endif %}
 #SBATCH --account={{ account }}
 #SBATCH --time={{ time_limit }}
-#SBATCH --output=./outputs/%j/logs/sweep.log
+#SBATCH --output=./outputs/%j/logs/sweep_%j.log
 #SBATCH --partition={{ partition }}
 {% for key, value in sbatch_directives.items() %}
 {% if value %}
@@ -36,8 +36,7 @@ OUTPUT_DIR="${WORK_DIR}/outputs/${SLURM_JOB_ID}"
 LOG_DIR="${OUTPUT_DIR}/logs"
 mkdir -p "${LOG_DIR}"
 
-# Redirect output
-exec > >(tee "${LOG_DIR}/sweep_${SLURM_JOB_ID}.log")
+# Redirect stderr to stdout (SLURM captures both via --output)
 exec 2>&1
 
 echo "=========================================="
@@ -63,7 +62,7 @@ echo "Head node: ${HEAD_NODE}"
 SRTCTL_INSTALL_DIR="${OUTPUT_DIR}/.srtctl_install"
 echo ""
 echo "Installing srtctl to ${SRTCTL_INSTALL_DIR}..."
-pip install --quiet --target="${SRTCTL_INSTALL_DIR}" "{{ srtctl_source }}"
+python3 -m pip install --quiet --target="${SRTCTL_INSTALL_DIR}" "{{ srtctl_source }}"
 
 export PYTHONPATH="${SRTCTL_INSTALL_DIR}:${PYTHONPATH}"
 
