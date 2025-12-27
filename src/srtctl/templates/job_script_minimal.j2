@@ -57,9 +57,20 @@ cp "{{ config_path }}" "${OUTPUT_DIR}/config.yaml"
 HEAD_NODE=$(scontrol show hostnames ${SLURM_NODELIST} | head -n1)
 echo "Head node: ${HEAD_NODE}"
 
-# Add srtctl source to PYTHONPATH (no pip needed)
-export PYTHONPATH="{{ srtctl_source }}/src:${PYTHONPATH}"
-export SRTCTL_SOURCE_DIR="{{ srtctl_source }}"
+# Install srtctl using container's pip (host may not have pip)
+SRTCTL_SOURCE="{{ srtctl_source }}"
+SRTCTL_INSTALL_DIR="${OUTPUT_DIR}/.srtctl_install"
+export SRTCTL_SOURCE_DIR="${SRTCTL_SOURCE}"
+
+echo ""
+echo "Installing srtctl dependencies via container..."
+srun --nodes=1 --ntasks=1 --nodelist="${HEAD_NODE}" \
+    --container-image="{{ container_image }}" \
+    --container-mounts="${SRTCTL_SOURCE}:/srtctl-src,${SRTCTL_INSTALL_DIR}:/srtctl-install" \
+    pip install --quiet --target=/srtctl-install /srtctl-src
+
+export PYTHONPATH="${SRTCTL_INSTALL_DIR}:${PYTHONPATH}"
+echo "Installed to ${SRTCTL_INSTALL_DIR}"
 
 echo "Running orchestrator on host (with srun access)..."
 echo ""
