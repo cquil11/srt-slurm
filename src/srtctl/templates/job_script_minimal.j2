@@ -60,6 +60,7 @@ echo "Head node: ${HEAD_NODE}"
 # Install srtctl using container's pip (host may not have pip)
 SRTCTL_SOURCE="{{ srtctl_source }}"
 SRTCTL_INSTALL_DIR="${OUTPUT_DIR}/.srtctl_install"
+mkdir -p "${SRTCTL_INSTALL_DIR}"
 export SRTCTL_SOURCE_DIR="${SRTCTL_SOURCE}"
 
 echo ""
