@@ -1,12 +1,28 @@
-# Table of contents
+# Table of Contents
+
+## Getting Started
 
 - [Introduction](README.md)
 - [Installation](installation.md)
-- [Configuration Reference](config-reference.md)
 - [CLI Reference](cli.md)
+
+## Configuration
+
+- [Configuration Reference](config-reference.md)
 - [Parameter Sweeps](sweeps.md)
+
+## Architecture & Frontends
+
+- [Architecture](architecture.md)
 - [SGLang Router](sglang-router.md)
+
+## Benchmarking
+
+- [Accuracy Benchmarks](accuracy.md)
 - [Profiling](profiling.md)
+
+## Operations
+
 - [Monitoring](monitoring.md)
-- [Analyzing](analyzing.md)
+- [Analyzing Results](analyzing.md)
 - [SLURM FAQ](slurm-faq.md)

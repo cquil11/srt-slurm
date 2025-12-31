@@ -112,12 +112,6 @@ setup:
 		echo "# Path to srtctl repo root (where scripts/templates/ lives)" >> srtslurm.yaml; \
 		echo "# Auto-detected from current directory" >> srtslurm.yaml; \
 		echo "srtctl_root: \"$$SRTCTL_ROOT\"" >> srtslurm.yaml; \
-		echo "" >> srtslurm.yaml; \
-		echo "# Cloud sync settings (optional)" >> srtslurm.yaml; \
-		echo "cloud:" >> srtslurm.yaml; \
-		echo "  endpoint_url: \"\"" >> srtslurm.yaml; \
-		echo "  bucket: \"\"" >> srtslurm.yaml; \
-		echo "  prefix: \"benchmark-results/\"" >> srtslurm.yaml; \
 		echo "✅ Created srtslurm.yaml"; \
 		echo "   You can edit it anytime to add model_paths, containers, etc."; \
 	fi

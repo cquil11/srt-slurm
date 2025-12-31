@@ -2,6 +2,25 @@
 
 This page explains the sglang router mode for prefill-decode (PD) disaggregation, an alternative to the default Dynamo frontend architecture.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Configuration](#configuration)
+  - [Router Arguments](#router-arguments)
+  - [Frontend Environment Variables](#frontend-environment-variables)
+- [Architecture Modes](#architecture-modes)
+  - [Single Router](#single-router-enable_multiple_frontends-false)
+  - [Multiple Routers](#multiple-routers-enable_multiple_frontends-true-default)
+- [How Router Distribution Works](#how-router-distribution-works)
+- [Port Configuration](#port-configuration)
+  - [Bootstrap Port](#bootstrap-port)
+  - [Server Port](#server-port)
+- [Complete Example](#complete-example)
+- [Troubleshooting](#troubleshooting)
+- [Comparison with Dynamo](#comparison-with-dynamo)
+
+---
+
 ## Overview
 
 By default, srtctl uses **Dynamo frontends** to coordinate between prefill and decode workers. This requires NATS/ETCD infrastructure and the `dynamo` package.
@@ -206,69 +225,6 @@ benchmark:
   isl: 128000
   osl: 8000
   concurrencies: "16x32"
-```
-
-## KV Events
-
-KV events allow workers to publish cache/scheduling information over ZMQ for external consumers (monitoring, custom routers, etc.).
-
-### Enabling KV Events
-
-Add `kv_events_config` to your backend section:
-
-```yaml
-backend:
-  type: sglang
-
-  # Enable for prefill only
-  kv_events_config:
-    prefill: true
-
-  # Or enable for both prefill and decode
-  kv_events_config:
-    prefill: true
-    decode: true
-
-  # Or with custom publisher/topic
-  kv_events_config:
-    prefill:
-      publisher: "zmq"
-      topic: "prefill-events"
-    decode:
-      topic: "decode-events"  # publisher defaults to "zmq"
-```
-
-### Port Allocation
-
-Each worker leader gets a globally unique ZMQ port:
-
-- Ports start at `5550` and increment for each worker
-- Ports are unique across all nodes (no reuse)
-- Only leader processes get ports (non-leaders don't publish events)
-
-Example with 2 prefill workers on node0 + 2 decode workers on node1:
-
-| Worker    | Node  | Port |
-| --------- | ----- | ---- |
-| prefill_0 | node0 | 5550 |
-| prefill_1 | node0 | 5551 |
-| decode_0  | node1 | 5552 |
-| decode_1  | node1 | 5553 |
-
-The generated `--kv-events-config` flag looks like:
-
-```bash
---kv-events-config '{"publisher":"zmq","topic":"kv-events","endpoint":"tcp://*:5550"}'
-```
-
-### Global Shortcut
-
-Use `kv_events_config: true` to enable for prefill+decode with defaults:
-
-```yaml
-backend:
-  type: sglang
-  kv_events_config: true # enables prefill+decode, not agg
 ```
 
 ## Troubleshooting

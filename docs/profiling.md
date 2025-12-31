@@ -2,6 +2,22 @@
 
 srtctl supports two profiling backends for performance analysis: **Torch Profiler** and **NVIDIA Nsight Systems (nsys)**.
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Profiling Modes](#profiling-modes)
+- [Configuration Options](#configuration-options)
+  - [Top-level profiling section](#top-level-profiling-section)
+  - [Parameters](#parameters)
+- [Constraints](#constraints)
+- [How It Works](#how-it-works)
+- [Example Configurations](#example-configurations)
+- [Output Files](#output-files)
+  - [Viewing Results](#viewing-results)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Quick Start
 
 Add a `profiling` section to your job YAML:
