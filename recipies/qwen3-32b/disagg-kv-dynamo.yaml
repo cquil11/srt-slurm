@@ -23,7 +23,7 @@ resources:
 
 # until prefill router goes in 0.8.0
 dynamo:
-  hash: "da865d5d9da2e43f03caac1e456f617f4a9a1c92"
+  hash: "0b33c1dfa0c1c88b4c728e600aa62a1be594b0c6"
 
 frontend:
   type: dynamo
