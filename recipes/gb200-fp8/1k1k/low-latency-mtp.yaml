@@ -1,4 +1,4 @@
-name: "gb200-fp8-1p-4d-low-latency-mtp"
+name: "gb200-fp8-1p-2d-low-latency-mtp"
 
 model:
   path: "dsfp8"
@@ -104,7 +104,6 @@ backend:
       cuda-graph-max-bs: 256
       max-running-requests: 512
       scheduler-recv-interval: 10
-      #enable-flashinfer-allreduce-fusion: true
       enable-symm-mem: true
       moe-dense-tp-size: 1
       prefill-round-robin-balance: true
