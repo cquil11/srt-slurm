@@ -839,3 +839,176 @@ class TestSbatchNodeCount:
 
         # Should request 2 nodes: just the workers
         assert "#SBATCH --nodes=2" in script
+
+
+class TestVLLMDataParallelMode:
+    """Tests for vLLM DP+EP (Data Parallel + Expert Parallel) mode."""
+
+    def test_dp_mode_detection(self):
+        """Test that DP mode is correctly detected from config."""
+        from srtctl.backends import VLLMProtocol, VLLMServerConfig
+
+        # No DP mode when data-parallel-size is not set
+        backend = VLLMProtocol(
+            vllm_config=VLLMServerConfig(
+                prefill={"tensor-parallel-size": 8},
+                decode={"tensor-parallel-size": 4},
+            )
+        )
+        assert backend._is_dp_mode("prefill") is False
+        assert backend._is_dp_mode("decode") is False
+
+        # DP mode detected when data-parallel-size is set
+        backend_dp = VLLMProtocol(
+            vllm_config=VLLMServerConfig(
+                prefill={"data-parallel-size": 16, "enable-expert-parallel": True},
+                decode={"data-parallel-size": 16, "enable-expert-parallel": True},
+            )
+        )
+        assert backend_dp._is_dp_mode("prefill") is True
+        assert backend_dp._is_dp_mode("decode") is True
+        assert backend_dp._get_dp_size("prefill") == 16
+
+    def test_dp_mode_creates_per_gpu_processes(self):
+        """Test that DP mode creates one process per GPU instead of per node."""
+        from srtctl.backends import VLLMProtocol, VLLMServerConfig
+        from srtctl.core.topology import Endpoint
+
+        backend = VLLMProtocol(
+            vllm_config=VLLMServerConfig(
+                prefill={"data-parallel-size": 16, "enable-expert-parallel": True},
+            )
+        )
+
+        # Create an endpoint spanning 2 nodes with 8 GPUs each = 16 GPUs total
+        endpoint = Endpoint(
+            mode="prefill",
+            index=0,
+            nodes=("node0", "node1"),
+            gpu_indices=frozenset(range(8)),
+            gpus_per_node=8,
+        )
+
+        processes = backend.endpoints_to_processes([endpoint])
+
+        # Should create 16 processes (1 per GPU), not 2 (1 per node)
+        assert len(processes) == 16
+
+        # Each process should have exactly 1 GPU
+        for proc in processes:
+            assert len(proc.gpu_indices) == 1
+
+        # First 8 processes on node0, next 8 on node1
+        node0_processes = [p for p in processes if p.node == "node0"]
+        node1_processes = [p for p in processes if p.node == "node1"]
+        assert len(node0_processes) == 8
+        assert len(node1_processes) == 8
+
+        # GPU indices should be 0-7 on each node
+        node0_gpus = {list(p.gpu_indices)[0] for p in node0_processes}
+        node1_gpus = {list(p.gpu_indices)[0] for p in node1_processes}
+        assert node0_gpus == {0, 1, 2, 3, 4, 5, 6, 7}
+        assert node1_gpus == {0, 1, 2, 3, 4, 5, 6, 7}
+
+        # dp_rank (stored in node_rank) should go from 0 to 15
+        dp_ranks = [p.node_rank for p in processes]
+        assert dp_ranks == list(range(16))
+
+    def test_dp_mode_command_includes_dp_flags(self):
+        """Test that DP mode command includes correct DP flags instead of TP flags."""
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
+        from srtctl.backends import VLLMProtocol, VLLMServerConfig
+        from srtctl.core.topology import Process
+
+        backend = VLLMProtocol(
+            vllm_config=VLLMServerConfig(
+                prefill={
+                    "data-parallel-size": 16,
+                    "data-parallel-rpc-port": 13345,
+                    "enable-expert-parallel": True,
+                },
+            )
+        )
+
+        # Create a process representing GPU 5 with dp_rank=5
+        process = Process(
+            node="node0",
+            gpu_indices=frozenset([5]),
+            sys_port=8081,
+            http_port=0,
+            endpoint_mode="prefill",
+            endpoint_index=0,
+            node_rank=5,  # dp_rank
+        )
+
+        # Create endpoint_processes spanning 2 nodes
+        endpoint_processes = [
+            Process(node="node0", gpu_indices=frozenset([i]), sys_port=8081 + i, http_port=0,
+                    endpoint_mode="prefill", endpoint_index=0, node_rank=i)
+            for i in range(8)
+        ] + [
+            Process(node="node1", gpu_indices=frozenset([i]), sys_port=8089 + i, http_port=0,
+                    endpoint_mode="prefill", endpoint_index=0, node_rank=8 + i)
+            for i in range(8)
+        ]
+
+        # Mock runtime context
+        mock_runtime = MagicMock()
+        mock_runtime.model_path = Path("/model")
+
+        with patch("srtctl.core.slurm.get_hostname_ip", return_value="10.0.0.1"):
+            cmd = backend.build_worker_command(
+                process=process,
+                endpoint_processes=endpoint_processes,
+                runtime=mock_runtime,
+            )
+
+        # Should include DP flags
+        assert "--data-parallel-rank" in cmd
+        assert "5" in cmd  # dp_rank = 5
+        assert "--data-parallel-address" in cmd
+        assert "10.0.0.1" in cmd
+        assert "--data-parallel-rpc-port" in cmd
+        assert "13345" in cmd
+        assert "--data-parallel-size" in cmd
+        assert "16" in cmd
+
+        # Should NOT include TP multi-node flags
+        assert "--master-addr" not in cmd
+        assert "--nnodes" not in cmd
+        assert "--node-rank" not in cmd
+        assert "--headless" not in cmd
+
+    def test_standard_tp_mode_still_works(self):
+        """Test that standard TP mode (no DP) still creates per-node processes."""
+        from srtctl.backends import VLLMProtocol, VLLMServerConfig
+        from srtctl.core.topology import Endpoint
+
+        # No data-parallel-size set = standard TP mode
+        backend = VLLMProtocol(
+            vllm_config=VLLMServerConfig(
+                prefill={"tensor-parallel-size": 16},
+            )
+        )
+
+        # Create an endpoint spanning 2 nodes
+        endpoint = Endpoint(
+            mode="prefill",
+            index=0,
+            nodes=("node0", "node1"),
+            gpu_indices=frozenset(range(8)),
+            gpus_per_node=8,
+        )
+
+        processes = backend.endpoints_to_processes([endpoint])
+
+        # Should create 2 processes (1 per node), not 16 (1 per GPU)
+        assert len(processes) == 2
+        assert processes[0].node == "node0"
+        assert processes[1].node == "node1"
+
+        # Each process should have 8 GPUs
+        assert len(processes[0].gpu_indices) == 8
+        assert len(processes[1].gpu_indices) == 8
