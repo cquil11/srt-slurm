@@ -27,4 +27,6 @@ class JobUpdatePayload(BaseModel):
     started_at: str | None = Field(None, description="ISO 8601 job start timestamp")
     completed_at: str | None = Field(None, description="ISO 8601 job completion timestamp")
     exit_code: int | None = Field(None, description="Process exit code")
+    logs_url: str | None = Field(None, description="S3 URL where job logs were uploaded")
+    benchmark_results: dict | None = Field(None, description="Parsed benchmark results")
     metadata: dict | None = Field(None, description="Additional metadata to merge")

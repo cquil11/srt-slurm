@@ -40,6 +40,8 @@ class JobDetail(BaseModel):
     completed_at: str | None = None
     updated_at: str
     exit_code: int | None = None
+    logs_url: str | None = None
+    benchmark_results: dict | None = None
     metadata: dict | None = None
     events: list[dict] | None = None
 
