@@ -35,6 +35,9 @@ frontend:
 backend:
   type: sglang
 
+  kv_events_config:
+    prefill: true
+
   prefill_environment:
     SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
     SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
@@ -77,8 +80,15 @@ backend:
       disaggregation-transfer-backend: "nixl"
 
 # Mooncake benchmark using aiperf
+# benchmark:
+#   type: "mooncake-router"
+#   mooncake_workload: "conversation"
+#   ttft_threshold_ms: 2000
+#   itl_threshold_ms: 25
+
 benchmark:
-  type: "mooncake-router"
-  mooncake_workload: "conversation"
-  ttft_threshold_ms: 2000
-  itl_threshold_ms: 25
+  type: "sa-bench"
+  isl: 1024
+  osl: 1024
+  concurrencies: "4x8"
+  req_rate: "inf"
