@@ -1,7 +1,4 @@
-name: "gb200-fp8-1k1k-max-tpt"
-
-extra_mount: # add this if you need to mount extra directories to the container
-  - "/lustre:/lustre"
+name: "gb200-fp8-1k1k-ultra-tpt"
 
 dynamo:
   version: 0.8.1
