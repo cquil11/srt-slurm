@@ -1,8 +1,8 @@
 name: "gb300-1k1k-fp8-low-latency"
 
 model:
-  path: "dsfp8"
-  container: "lmsysorg/sglang:v0.5.8-cu130-runtime"
+  path: "dsr1-fp8"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp8"
 
 frontend:
@@ -83,7 +83,6 @@ backend:
       scheduler-recv-interval: 10
       enable-flashinfer-allreduce-fusion: false # to save mem
       enable-symm-mem: false # to save mem 
-      moe-dense-tp-size: 1
       tensor-parallel-size: 4
       data-parallel-size: 1
       expert-parallel-size: 1
@@ -109,7 +108,6 @@ backend:
       scheduler-recv-interval: 1  # save mem
       enable-flashinfer-allreduce-fusion: false # to save mem 
       enable-symm-mem: false # to save mem
-      moe-dense-tp-size: 1
       prefill-round-robin-balance: true
       tensor-parallel-size: 4
       data-parallel-size: 1

@@ -1,8 +1,11 @@
-name: "gb200-fp8-1p-2d-low-latency-mtp"
+name: "gb200-fp8-1p-2d-low-latency-mtp3"
+
+frontend:
+  nginx_container: nginx
 
 model:
   path: "dsfp8"
-  container: "0.5.8"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp8"
 
 resources:
@@ -18,7 +21,6 @@ backend:
     TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
     PYTHONUNBUFFERED: "1"
     DYN_SKIP_SGLANG_LOG_FORMATTING: "1"
-    SGLANG_DG_CACHE_DIR: "/configs/dg-10212025"
     SGLANG_ENABLE_JIT_DEEPGEMM: "false"
     SGLANG_ENABLE_FLASHINFER_GEMM: "1"
     SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
@@ -32,12 +34,13 @@ backend:
     NCCL_MNNVL_ENABLE: "1"
     NCCL_CUMEM_ENABLE: "1"
     SGLANG_ENABLE_SPEC_V2: "1"
+    SGLANG_NCCL_ALL_GATHER_IN_OVERLAP_SCHEDULER_SYNC_BATCH: "1"
+    SGLANG_JIT_DEEPGEMM_FAST_WARMUP: "1"
 
   decode_environment:
     TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
     PYTHONUNBUFFERED: "1"
     DYN_SKIP_SGLANG_LOG_FORMATTING: "1"
-    SGLANG_DG_CACHE_DIR: "/configs/dg-10212025"
     SGLANG_ENABLE_JIT_DEEPGEMM: "false"
     SGLANG_ENABLE_FLASHINFER_GEMM: "1"
     SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
@@ -53,6 +56,8 @@ backend:
     NCCL_MNNVL_ENABLE: "1"
     NCCL_CUMEM_ENABLE: "1"
     SGLANG_ENABLE_SPEC_V2: "1"
+    SGLANG_NCCL_ALL_GATHER_IN_OVERLAP_SCHEDULER_SYNC_BATCH: "1"
+    SGLANG_JIT_DEEPGEMM_FAST_WARMUP: "1"
 
   sglang_config:
     prefill:
@@ -68,23 +73,23 @@ backend:
       watchdog-timeout: 1000000
       context-length: 2200
       disaggregation-mode: "prefill"
-      mem-fraction-static: 0.90
+      mem-fraction-static: 0.95
       max-total-tokens: 8192
       chunked-prefill-size: 8192
       cuda-graph-max-bs: 128
-      max-running-requests: 512
+      max-running-requests: 128
       load-balance-method: "round_robin"
       scheduler-recv-interval: 10
       enable-flashinfer-allreduce-fusion: true
       enable-symm-mem: true
-      moe-dense-tp-size: 1
       tensor-parallel-size: 4
       data-parallel-size: 1
       expert-parallel-size: 1
+      disaggregation-transfer-backend: "nixl"
       speculative-algorithm: "EAGLE"
-      speculative-num-steps: 2
+      speculative-num-steps: 3
       speculative-eagle-topk: 1
-      speculative-num-draft-tokens: 3
+      speculative-num-draft-tokens: 4
 
     decode:
       served-model-name: "deepseek-ai/DeepSeek-R1"
@@ -105,15 +110,15 @@ backend:
       max-running-requests: 512
       scheduler-recv-interval: 10
       enable-symm-mem: true
-      moe-dense-tp-size: 1
       prefill-round-robin-balance: true
       tensor-parallel-size: 8
       data-parallel-size: 1
       expert-parallel-size: 1
+      disaggregation-transfer-backend: "nixl"
       speculative-algorithm: "EAGLE"
-      speculative-num-steps: 2
+      speculative-num-steps: 3
       speculative-eagle-topk: 1
-      speculative-num-draft-tokens: 3
+      speculative-num-draft-tokens: 4
 
 benchmark:
   type: "sa-bench"

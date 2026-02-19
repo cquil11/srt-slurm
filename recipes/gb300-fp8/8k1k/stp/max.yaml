@@ -3,8 +3,8 @@
 name: "gb300-8k1k-fp8-max"
 
 model:
-  path: "dsfp8"
-  container: "lmsysorg/sglang:v0.5.8-cu130-runtime"
+  path: "dsr1-fp8"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp8"
 
 frontend:
